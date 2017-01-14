@@ -1,0 +1,16 @@
+apply plugin: 'java'
+apply plugin: 'application'
+
+mainClassName = "exter.hostqr.HostQR"
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile 'org.slf4j:slf4j-simple:1.7.21'
+    compile "com.sparkjava:spark-core:2.5.4"
+    compile 'com.google.zxing:core:3.0.1'
+    compile 'com.google.guava:guava:19.0'
+    testCompile 'junit:junit:4.12'
+}
