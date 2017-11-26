@@ -74,28 +74,39 @@ public class HostQR
 
     return null;
   }
-  
+
+  private static void addFiles(StringBuilder output, File[] filesList,String dir)
+  {
+    for(File file : filesList)
+    {
+      String path = dir + file.getName();
+      if(file.isFile())
+      {
+        output.append("<tr><td><center><h2><p>");
+        output.append(path);
+        output.append("</p></h2>\n<img src=\"qr/");
+        output.append(path);
+        output.append("\" /></center></td></tr>\n");
+      } else if(file.isDirectory())
+      {
+        System.out.println(file.getName());
+        String sub = dir + file.getName() + "/";
+        addFiles(output,file.listFiles(),sub);
+      }
+    }
+  }
+
   private static Object listFiles(final Request request, final Response response) throws Exception
   {
     StringBuilder output = new StringBuilder();
     output.append("<html><head><style>table,th,td { border: 1px solid black; border-collapse: collapse; } th,td { padding: 15px; padding-bottom: 50%; } </style></head>");
     output.append("<body style=\"background-color:#DFDFDF\"><center><table style=\"width:80%\">\n");
     File dir = new File("files");
-    File[] filesList = dir.listFiles();
-    for(File file : filesList)
-    {
-      if(file.isFile())
-      {
-        output.append("<tr><td><center><h2><p>");
-        output.append(file.getName());
-        output.append("</p></h2>\n<img src=\"qr/");
-        output.append(file.getName());
-        output.append("\" /></center></td></tr>\n");
-      }
-    }
+    addFiles(output,dir.listFiles(),"");
     output.append("</table></center></body></html>");
     return output.toString();
   }
+  
 
   private static BufferedImage createQR(String myCodeText, int size) throws WriterException
   {
@@ -133,7 +144,7 @@ public class HostQR
   {
     new File("files").mkdir();
     Spark.get("/", (req, res) -> listFiles(req,res));
-    Spark.get("/qr/:file", (req, res) -> getQR(req,res));
+    Spark.get("/qr/*", (req, res) -> getQR(req,res));
     Spark.get("/files/*", (req, res) -> getFile(req,res));
   }
 
