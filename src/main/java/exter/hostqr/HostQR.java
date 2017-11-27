@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -19,6 +20,7 @@ import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
+import com.google.common.hash.Hashing;
 import com.google.common.net.MediaType;
 
 import spark.Request;
@@ -82,11 +84,8 @@ public class HostQR
       String path = dir + file.getName();
       if(file.isFile())
       {
-        output.append("<tr><td><center><h2><p>");
-        output.append(path);
-        output.append("</p></h2>\n<img src=\"qr/");
-        output.append(path);
-        output.append("\" /></center></td></tr>\n");
+        String id = Hashing.sha256().hashBytes(path.getBytes()).toString();
+        output.append(entryHTML.replaceAll("\\[\\[ID\\]\\]", id).replaceAll("\\[\\[PATH\\]\\]", path));
       } else if(file.isDirectory())
       {
         System.out.println(file.getName());
@@ -99,12 +98,9 @@ public class HostQR
   private static Object listFiles(final Request request, final Response response) throws Exception
   {
     StringBuilder output = new StringBuilder();
-    output.append("<html><head><style>table,th,td { border: 1px solid black; border-collapse: collapse; } th,td { padding: 15px; padding-bottom: 50%; } </style></head>");
-    output.append("<body style=\"background-color:#DFDFDF\"><center><table style=\"width:80%\">\n");
     File dir = new File("files");
     addFiles(output,dir.listFiles(),"");
-    output.append("</table></center></body></html>");
-    return output.toString();
+    return mainHTML.replaceAll("\\[\\[FILES\\]\\]", output.toString());
   }
   
 
@@ -139,9 +135,27 @@ public class HostQR
     }
     return image;
   }
+
+  static private String readTemplate(String name)
+  {
+    try
+    {
+      return IOUtils.toString(HostQR.class.getResourceAsStream(name));
+    } catch(IOException e)
+    {
+      return null;
+    }
+    
+  }
+  
+  static private String mainHTML;
+  static private String entryHTML;
   
   public static void main(String[] args)
   {
+    mainHTML = readTemplate("/html/index.html");
+    entryHTML = readTemplate("/html/entry.html");
+    
     new File("files").mkdir();
     Spark.get("/", (req, res) -> listFiles(req,res));
     Spark.get("/qr/*", (req, res) -> getQR(req,res));
