@@ -1,3 +1,4 @@
+#set($h = '#')
 <!DOCTYPE html />
 <html>
     <head>
@@ -18,7 +19,20 @@
     <body style="background-color:#DFDFDF">
         <center>
             <table style="width:80%">
-               [[FILES]]
+                #foreach( $qrFile in $files )
+                <tr><td>
+                    <div id="file:${qrFile.id}">
+                        <h2>
+                            <a href="${h}file:${qrFile.id}" id="hide:${qrFile.id}" style="display:none;" onclick="hide('${qrFile.id}')">[Hide]</a>
+                            <a href="${h}file:${qrFile.id}" id="show:${qrFile.id}" style="" onclick="show('${qrFile.id}')">[Show]</a>
+                            - ${qrFile.path}
+                        </h2>
+                        <center>
+                            <img id="qr:${qrFile.id}" style="display:none;" src="qr/${qrFile.path}" />
+                        </center>
+                    </div>
+                </td></tr>
+                #end
             </table>
         </center>
         <script type="text/javascript">

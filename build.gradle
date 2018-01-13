@@ -12,5 +12,6 @@ dependencies {
     compile "com.sparkjava:spark-core:2.5.4"
     compile 'com.google.zxing:core:3.0.1'
     compile 'com.google.guava:guava:19.0'
+    compile 'org.apache.velocity:velocity-engine-core:2.0'
     testCompile 'junit:junit:4.12'
 }

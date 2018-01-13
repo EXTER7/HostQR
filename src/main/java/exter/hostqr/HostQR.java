@@ -7,12 +7,20 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
+import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.imageio.ImageIO;
 import javax.servlet.ServletOutputStream;
+
+import org.apache.velocity.Template;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.VelocityEngine;
+import org.apache.velocity.runtime.RuntimeConstants;
+import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
 
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
@@ -30,6 +38,28 @@ import spark.utils.IOUtils;
 
 public class HostQR
 {
+  static public class FileQR
+  {
+    private final String id;
+    private final String path;
+    
+    public FileQR(String id, String path)
+    {
+      this.id = id;
+      this.path = path;
+    }
+    
+    public String getId()
+    {
+      return id;
+    }
+    
+    public String getPath()
+    {
+      return path;
+    }
+  }
+  
   private static Object getQR(final Request request, final Response response) throws Exception
   {
     String file = request.url().replace("/qr/", "/files/");
@@ -77,7 +107,7 @@ public class HostQR
     return null;
   }
 
-  private static void addFiles(StringBuilder output, File[] filesList,String dir)
+  private static void addFiles(List<FileQR> qrFiles, File[] filesList,String dir)
   {
     for(File file : filesList)
     {
@@ -85,22 +115,26 @@ public class HostQR
       if(file.isFile())
       {
         String id = Hashing.sha256().hashBytes(path.getBytes()).toString();
-        output.append(entryHTML.replaceAll("\\[\\[ID\\]\\]", id).replaceAll("\\[\\[PATH\\]\\]", path));
+        qrFiles.add(new FileQR(id,path));
       } else if(file.isDirectory())
       {
         System.out.println(file.getName());
         String sub = dir + file.getName() + "/";
-        addFiles(output,file.listFiles(),sub);
+        addFiles(qrFiles,file.listFiles(),sub);
       }
     }
   }
 
   private static Object listFiles(final Request request, final Response response) throws Exception
   {
-    StringBuilder output = new StringBuilder();
+    StringWriter writer = new StringWriter();
+    VelocityContext ctx = new VelocityContext();
+    List<FileQR> qrFiles = new ArrayList<>();
     File dir = new File("files");
-    addFiles(output,dir.listFiles(),"");
-    return mainHTML.replaceAll("\\[\\[FILES\\]\\]", output.toString());
+    addFiles(qrFiles,dir.listFiles(),"");
+    ctx.put("files", qrFiles);
+    mainTemplate.merge(ctx, writer);
+    return writer.toString();
   }
   
 
@@ -108,24 +142,22 @@ public class HostQR
   {
     Map<EncodeHintType, Object> hintMap = new EnumMap<EncodeHintType, Object>(EncodeHintType.class);
     hintMap.put(EncodeHintType.CHARACTER_SET, "UTF-8");
-
     hintMap.put(EncodeHintType.MARGIN, 1);
     hintMap.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.L);
 
     QRCodeWriter qrCodeWriter = new QRCodeWriter();
     BitMatrix byteMatrix = qrCodeWriter.encode(myCodeText, BarcodeFormat.QR_CODE, size, size, hintMap);
-    int CrunchifyWidth = byteMatrix.getWidth();
-    BufferedImage image = new BufferedImage(CrunchifyWidth, CrunchifyWidth, BufferedImage.TYPE_INT_RGB);
-    image.createGraphics();
+    int imgSize = byteMatrix.getWidth();
+    BufferedImage image = new BufferedImage(imgSize, imgSize, BufferedImage.TYPE_INT_RGB);
+    Graphics2D graphics = image.createGraphics();
 
-    Graphics2D graphics = (Graphics2D) image.getGraphics();
     graphics.setColor(Color.WHITE);
-    graphics.fillRect(0, 0, CrunchifyWidth, CrunchifyWidth);
+    graphics.fillRect(0, 0, imgSize, imgSize);
     graphics.setColor(Color.BLACK);
 
-    for(int i = 0; i < CrunchifyWidth; i++)
+    for(int i = 0; i < imgSize; i++)
     {
-      for(int j = 0; j < CrunchifyWidth; j++)
+      for(int j = 0; j < imgSize; j++)
       {
         if(byteMatrix.get(i, j))
         {
@@ -136,30 +168,22 @@ public class HostQR
     return image;
   }
 
-  static private String readTemplate(String name)
-  {
-    try
-    {
-      return IOUtils.toString(HostQR.class.getResourceAsStream(name));
-    } catch(IOException e)
-    {
-      return null;
-    }
-    
-  }
-  
-  static private String mainHTML;
-  static private String entryHTML;
+  static private Template mainTemplate;
+  static private VelocityEngine ve;
   
   public static void main(String[] args)
   {
-    mainHTML = readTemplate("/html/index.html");
-    entryHTML = readTemplate("/html/entry.html");
+    ve = new VelocityEngine();
+    ve.setProperty(RuntimeConstants.RESOURCE_LOADER, "classpath"); 
+    ve.setProperty("classpath.resource.loader.class", ClasspathResourceLoader.class.getName());
+    ve.init();
+    
+    mainTemplate = ve.getTemplate("/vm/hostqr.vm");
     
     new File("files").mkdir();
-    Spark.get("/", (req, res) -> listFiles(req,res));
-    Spark.get("/qr/*", (req, res) -> getQR(req,res));
-    Spark.get("/files/*", (req, res) -> getFile(req,res));
+    Spark.get("/", HostQR::listFiles);
+    Spark.get("/qr/*", HostQR::getQR);
+    Spark.get("/files/*", HostQR::getFile);
   }
 
 }
